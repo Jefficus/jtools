@@ -1,0 +1,206 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+   jglossary: Search a provided list of text files for annotations
+   and provide a list of the ones that match the glossary note format.
+
+   If file .jgloss exists in local directory, it will be read as a list
+   of filename patterns that resolve into a list of files that should be
+   loaded as glossary sources.
+
+   e.g. to load all .md files in all sibling directories, it should
+        contain: ../*/*md
+
+   Usage: 
+      jglossary [options] 
+      jglossary [options] FILE...
+      jglossary -h | --help
+      jglossary -V | --version
+
+   Options:
+      -h         # Print this help information
+      -C         # List characters instead of words
+      -i         # Ignore .jgloss file if present
+      -l         # Print the list of files contributing to the glossary
+      -L         # List Lore notes instead of words
+      -P         # List Places flagged in the text instead of word definitions
+      -Q         # List Quotables instead of words
+      -V         # Display version information
+      -s REGEX   # Search the glossary for the REGEX pattern
+      -w         # List words only, no defnitions
+
+   Created 2014 by Jefferson Smith <jefferson@smithicus.com>
+"""
+
+import re
+import os
+import sys
+import glob
+from docopt import docopt
+
+# process command line args
+args = docopt(__doc__, version='jglossary Version 0.1')
+#print args
+
+searchpat = args['-s']
+
+def strippunct(instr):
+   strippables = "\"',.-!?"
+   return instr.strip(strippables)
+
+def printsummary(m, width=70, margin=6):
+    #width = 70
+    #margin = 6
+    linesize = width-margin
+    wlist = m.split()
+    while wlist:
+        outstr = wlist.pop(0)
+        while wlist and (len(outstr) < linesize):
+            outstr += ' ' + wlist.pop(0)
+        print ' '*margin + outstr
+    print
+
+class Glossary():
+   def __init__(self, tag, arg, guts, phrase=''):
+      self.tag = tag
+      self.arg = arg
+      self.guts = guts
+      self.phrase = strippunct(phrase)
+      #print ("Found guts: %s"%self.guts)
+      #print ("Found phrase: %s"%self.phrase)
+
+   def match(self, pat):
+       if not pat:
+           return True
+       for str in [self.tag,self.arg,self.guts,self.phrase]:
+           if re.search(pat,str):
+               return True
+       return False
+
+def pullprefixphrase(haystack, n, tail):
+   if not n.isdigit():
+      print "%s is not a number"%n
+      return ''
+   num = int(n)
+   pat = "((?:\S+\s+){%d})\[%s\]"%(num,tail)
+   m = re.search(pat, haystack)
+   phrase = ''
+   if m:
+      phrase = m.group(1).strip()
+   return phrase
+
+def stripUnspacedPunctuation(instr):
+    # Some punctuation appears in words without flanking spaces.
+    # These sometimes cause strange compound words to appear in
+    # glossary output. So replace those punctuations with a space
+    # before looking for tags.
+    outstr = instr.replace('...', ' ')
+    outstr = outstr.replace('---', ' ')
+    return outstr
+
+def pulltags(content):
+   content = stripUnspacedPunctuation(content)
+   pat = "\[.*?\]"
+   gls = []
+   target = 'word'
+   if args['-C']:
+       target = 'character'
+   if args['-Q']:
+       target = 'quote'
+   if args['-L']:
+       target = 'lore'
+   if args['-P']:
+       target = 'place'
+   for mat in re.findall(pat, content):
+      tokens = mat[1:-1].split(' ')
+      if len(tokens) > 1:
+         if target in tokens[0]:
+            if len(tokens) > 1:
+               n = tokens[1] 
+               tail = mat[1:-1]
+               phrase = pullprefixphrase(content, n, tail)
+               gls.append(Glossary(tokens[0], n, ' '.join(tokens[2:]), phrase))
+            else:
+               gls.append(Glossary(tokens[0], tokens[1], ' '))
+   return gls
+
+
+glosses = []
+
+
+# figure out which files to read as glossary sources
+filenames = []
+if args['FILE']:
+    filenames.extend(args['FILE'])
+elif os.path.isfile('.jgloss') and not args['-i']:
+    with open('.jgloss', 'r') as fh:
+        patterns = [x.strip() for x in fh.readlines()]
+    for pat in patterns:
+        for name in glob.glob(pat):
+            filenames.append(name)
+            #print name
+else:
+    print "No .jgloss file found. Create one or provide list of file names."
+    exit()
+
+if args['-l']:
+    print "Glossary Files:"
+    for f in sorted(filenames):
+        print f
+    print
+
+# now read the files and build the glossary
+for file in filenames:
+   with open(file,'r') as fh:
+      cont = fh.read()
+      gls = pulltags(cont)
+      glosses.extend(gls)
+
+#find max gloss width
+maxl = 0
+if glosses:
+    phraselens = [len(g.phrase) for g in glosses if g.phrase]
+    if any(phraselens):
+        maxl = max(phraselens)
+
+rows, columns = os.popen('stty size', 'r').read().split()
+
+def printDefinition(word, definition):
+  "Remove leading and trailing punctuation from glossary phrases, if any."
+  punct = ",.!?'\"-—;:”“’‘"
+  while word[0] in punct:
+      word = word[1:]
+  while word[-1] in punct:
+      word = word[:-1]
+  if len(definition):
+      defwords = definition.split()
+      while defwords:
+          if word:
+              outstr = word.rjust(maxl+2) + ": "
+          else:
+              outstr = word.rjust(maxl+2) + "  "
+          word = ''
+          frag = ''
+          remain = int(columns) - len(outstr)
+          while defwords and len(frag) + len(defwords[0]) + 1 < remain:
+              frag += defwords.pop(0) + ' '
+          #frag = definition[:remain]
+          #definition = definition[remain+1:]
+          print outstr + frag
+  else:
+    print "  " + word
+
+print "Found %d matching entries." % len(glosses)
+if (args['-C']):
+    print "Characters Mentioned:"
+elif (args['-Q']):
+    print "Quotable Quotations:"
+elif (args['-L']):
+    print "Points of Lore Mentioned:"
+else:
+    print "Glossary Terms and Definitions:"
+for g in sorted(glosses, key=lambda x: x.phrase.lower()):
+   if g.phrase and g.match(searchpat):
+      printDefinition(g.phrase, g.guts)
+
+

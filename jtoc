@@ -1,0 +1,291 @@
+#!/usr/bin/env python
+"""
+   jtoc: List the Jeffdown or Markdown files of the current
+          directory in table of contents order.
+          (Assumes files employ the [order:N] tagging
+          convention somewhere in the file contnets.)
+
+   Usage: 
+      jtoc [options] [DIR]
+      jtoc -n DATESTR FNAME SUMMARY
+      jtoc -h | --help
+      jtoc -v | --verbose
+      jtoc -V | --version
+
+   Options:
+      -A N   # Show only scenes with a time code AFTER N
+      -B N   # Show only scenes with a time code BEFORE N
+      -a     # Count all words, including bracketed notes
+      -d     # Report on subdirectories as well
+      -f STR # List only filenames where STR is in file contents
+      -l     # List filenames, in TOC order
+      -c     # Suppress logging of word count totals
+      -O     # Show summary count only. (Skip individual scene counts.)
+      -s     # Show summaries of each scene
+      -t tag,tag...   # Only show scenes with all given tags (default=scene)
+      -T tag,tag...   # Only show scenes without all given tags (default=inactive)
+      -S     # Active Scenes only. Short-hand for -t scene -T inactive
+      -j     # Suppress need for .jd file extension. Report on all files.
+      -h     # Print this help information
+      -v     # Display verbose output
+      -V     # Display version information
+
+   Created 2016 by Jefferson Smith <jefferson@smithicus.com>
+"""
+
+"""
+Roadmap:
+    X Add directory summarizing
+    X Added DIR arg to show ToC for alternate path
+    X Add flag to include summary statement per scene
+    X Add -f find feature to only list files containing specific keyword
+    . Refactor to use class rec rather than bare attrib list
+"""
+
+import os
+import re
+from docopt import docopt
+
+taglist = set([])
+tagexcludelist = set([])
+
+# process command line args
+args = docopt(__doc__, version='jtoc version 0.0.1')
+#print args
+
+def mention(outstr):
+    if args['-v']:
+        print outstr
+
+if args['-n']:
+    fname = args['FNAME']
+    dtstr = args['DATESTR']
+    summstr = args['SUMMARY']
+    if os.path.isfile(fname):
+        print "File already exists. Aborting."
+    else:
+        with open(fname, 'w') as oh:
+            guts="[order:%s]\n[status:sketched]\n[summary: %s]\n" % (dtstr, summstr)
+            oh.write(guts)
+            print "File %s written." % fname
+    exit()
+
+# UNFORTUNATELY, inserting default search tags creates problems in
+# directories that don't use tags. So the best policy is to not assume
+# tags are being used unless tag args are provided
+#
+# If no filter tags or antitags are provided at all, then default to
+# listing only the inactive scenes.
+#if not args['-t'] and not args['-T']:
+#    taglist.add('scene')
+#    tagexcludelist.add('inactive')
+filterByTags = False
+if args['-t'] or args['-T'] or args['-S']:
+    filterByTags = True
+
+if args['-S']:
+    taglist.add('scene')
+    tagexcludelist.add('inactive')
+
+if args['-t']:
+    for t in [x.strip().lower() for x in args['-t'].split(',')]:
+        if t:
+            taglist.add(t)
+    #taglist = set([x.strip() for x in args['-t'].split(',')])
+    #print "Looking for files that match tags: '%s'" % ' '.join(taglist)
+
+if args['-T']:
+    for t in [x.strip().lower() for x in args['-T'].split(',')]:
+        if t:
+            tagexcludelist.add(t)
+    #tagexcludelist = set([x.strip() for x in args['-T'].split(',')])
+    #print "Looking for files that do not match any of tags: %s" % ' '.join(tagexcludelist)
+
+if taglist:
+    mention("Showing files that match all tags: %s" % ', '.join(taglist) )
+else:
+    mention("Showing all files.")
+if tagexcludelist:
+    mention("Excluding files that match any of: %s" % ', '.join(tagexcludelist))
+else:
+    mention("No exclusions.")
+
+def isTargetFile(filestr):
+    "True if file matches paramaters for jtoc files. False otherwise."
+    if args['-j']:
+        return True
+    contentExtensions = ['.jd', '.md']
+    if filestr[-3:] in contentExtensions:
+        return True
+    return False
+
+doSubdirs = False
+doSubdirs = args['-d']
+targetdir = os.getcwd()
+if args['DIR']:
+    targetdir = args['DIR']
+    if not os.path.exists(targetdir):
+        print "Directory '%s' does not exist. Aborting."%targetdir
+        exit()
+
+# decide whether or not to log the word count
+logfile = os.path.join(targetdir, ".jtocdat")
+if not os.path.exists(logfile):
+    # Only log totals if a log file exists at the root 
+    # of the directory being examined
+    logfile = ''
+if args['-c'] or args['-a'] or not doSubdirs:
+    logfile = ''
+#print "Logfile: " + logfile
+
+if not doSubdirs:
+    # if there are no JD files in this directory, 
+    # and there are subdirectories, turn on the subdirs
+    dirpath, dirnames, filenames = next(os.walk(targetdir))
+    if dirnames and not any(isTargetFile(x) for x in filenames):
+        doSubdirs = True
+        print "Auto-enabling subdirectory flag"
+
+
+def groupStatus(statuslist):
+    statusmap = {'sketched':0, 'drafting':0.5, 'drafted':1, 
+            'redrafted':2, 'polished':3,
+            'finished':4}
+    if len(statuslist) and all(x in statusmap for x in statuslist):
+        minstat = min([statusmap[x.lower()] for x in statuslist])
+        for s in statusmap:
+            if statusmap[s] == minstat:
+                return s
+    return ''
+
+def printsummary(m, width=70, margin=6):
+    #width = 70
+    #margin = 6
+    linesize = width-margin
+    wlist = m.split()
+    while wlist:
+        outstr = wlist.pop(0)
+        while wlist and (len(outstr) < linesize):
+            outstr += ' ' + wlist.pop(0)
+        print ' '*margin + outstr
+    print
+
+def printline(n,f,s,w):
+    if not s:
+        s = ' '
+    print "%s %s %s %s" % ( n.rjust(5),
+            f.ljust(25),
+            s.ljust(12).lower(),
+            w.rjust(6))
+
+def SummarizeDir(dirpath, depth=0):
+    "Returns ToC for the directory, plus list of statuses found and totalwc"
+    toc = []
+    statuses = []
+    totalwc = 0
+    mention( "Searching %s" % dirpath )
+    for f in os.listdir(dirpath):
+       if os.path.isdir(os.path.join(dirpath,f)):
+           if not f.startswith('.') and doSubdirs:
+               subdir = os.path.join(dirpath,f)
+               subtoc,substats,subwc = SummarizeDir(subdir,depth+1)
+               toc.append( (-5, f, groupStatus(substats), str(subwc),'') )
+               # remove this conditional if you want directory word counts
+               # to include the count of their subdirectories
+               # In my normal usage, this would count archives and
+               # abandoned content, rather than just the live stuff
+               if not depth:
+                   totalwc += subwc
+       elif isTargetFile(f): # only .jd files contain manuscript content
+         with open(os.path.join(dirpath,f),'r') as fh:
+             txt = fh.read()
+         # if we're only listing find matches, skip files that don't match
+         if args['-f'] and not args['-f'] in txt:
+             continue
+         wc = len(txt.split())
+         pattern = "\[[^\]]*\]"
+         all = re.findall(pattern,txt)
+         allstr = ' '.join(all)
+         commentwc = len(allstr.split(' '))
+         if not args['-a']: 
+             wc -= commentwc
+         totalwc += wc
+         pattern = "\[order:\s*([0-9.]+)"
+         m = re.search(pattern, txt, re.IGNORECASE)
+         if m:
+            num = float(m.group(1))
+         else:
+            num = -1
+         pattern = "\[tags:\s*([a-z:]+)"
+         tags = set([])
+         m = re.search(pattern, txt, re.IGNORECASE)
+         if m:
+            tags = set([x.strip() for x in m.group(1).split(':')])
+         #print "Tags on file: %s" % ' '.join(tags)
+         pattern = "\[status:\s*([a-z]+)"
+         m = re.search(pattern, txt, re.IGNORECASE)
+         if m:
+            status = m.group(1)
+            statuses.append(status)
+            tags.add(status)
+         else:
+            status = "???"
+         pattern = "\[summary:\s*([^\]]+)"
+         m = re.search(pattern, txt, re.IGNORECASE)
+         if m:
+            summary = m.group(1)
+         else:
+            summary = ''
+         keeper = True
+         if filterByTags:
+             if len(tags):
+                 if len(taglist):
+                    intersect = taglist & tags
+                    if intersect != taglist: # all indicated tags are present
+                        keeper = False
+                 else:
+                    keeper = False # if there are no tags to match, there are no matches
+             else: # without tags in the file there can be no match
+                keeper = False
+             if len(tagexcludelist):
+                intersect = tagexcludelist & tags
+                if len(intersect): # some excluded tags are present
+                    keeper = False
+         if keeper:
+            if not (args['-A'] and num <= float(args['-A'])):
+               if not (args['-B'] and num >= float(args['-B'])):
+                   toc.append( (num, f, status, str(wc),summary) )
+    return toc, statuses, totalwc
+
+
+toc,statuses,totalwc = SummarizeDir( targetdir )
+
+timewide = 7
+if args['-l']:
+    for n,f,s,w,m in sorted(toc):
+        print f
+else:
+    totalwc = 0
+    if toc:
+        titwide = 2+max([len(t) for n,t,s,w,m in toc])
+    for n,t,s,w,m in sorted(toc):
+        if isTargetFile(t):
+            t = t[:-3]
+        if n == -5:
+            n = "DIR"
+        else:
+            totalwc += int(w)
+            n = ("%0.3f"%n).rjust(timewide)
+        if not args['-O']:
+            printline(n,t.ljust(titwide),s,w)
+        if args['-s']:
+            printsummary(m)
+    if toc:
+        printline('='*timewide,'='*titwide, '='*10, '='*6)
+        printline(str(len(toc)).rjust(timewide),'SUMMARY'.ljust(titwide),groupStatus(statuses),str(totalwc))
+        #if logfile:
+        #    print "Logging total wordcount to %s" % logfile
+        #else:
+        #    print "No log file being saved."
+    else:
+        print("No contents to report.")

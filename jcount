@@ -1,0 +1,331 @@
+#!/usr/bin/env python
+"""
+   jcount: Count the number of words written in the current draft or in
+   any historical draft contained in the bzr archive.
+
+   Tracks three numbers: the total manuscript words written, the annotation total and the file total. (All text inside [ ] brackets are considered to be annotations.)
+
+   Usage: 
+      jcount [options] 
+
+   Options:
+      -h          # Print this help information
+      -v          # Display verbose output
+      -V          # Display version information
+      -f FILE     # Display word counts for specific file
+      -s DATE     # words written since DATE
+      -S REV      # words written since revision REV
+      -r REV      # words written in revision REV
+      -c          # compute counts for all historical revs
+      -t          # show word count daily totals
+      -d          # dump revcounts from .jcount file
+      -D REV,REV  # difference in word counts between two revs
+      -w          # count words added to the working tree
+
+   Created 2017 by Jefferson Smith <jefferson@smithicus.com>
+"""
+
+"""
+Roadmap:
+    X Get basic counts of all files and ms files
+    X Add docopt arg processing
+    X Add -c to create .jcounts file and update missing counts
+    X Produce a live count of the working tree
+    X Display count for specific REV based on .jcounts
+    X Auto-update .jcounts for any requested -r REV not found 
+    X Produce live count of words written today
+    . Implement -s and -S counts for words written SINCE prev point 
+"""
+
+
+import os
+import subprocess as sub
+from datetime import date
+from docopt import docopt
+
+datafname = ".jcounts"
+
+# process command line args
+args = docopt(__doc__, version='jcount version 0.0.1')
+#print args
+
+if not args['-c'] and not os.path.isfile(datafname):
+    print "No jcount data file found. Consider running: jcount -c"
+    exit()
+
+def isFileCountable(fname):
+    basefile = os.path.basename(fname)
+    if basefile[0] == '.':
+        return False
+    if basefile[-3:] not in ['.md','.jd']:
+        return False
+    return True
+
+revcounts = {}
+revdates = {}
+
+
+def getFilenamesFromRev(revno):
+    #cmd = ['bzr', 'ls', '-k', 'file', '-r', 'revno:%d'%revno]
+    cmd = ['git', 'ls-tree', '-r', '-r', revno]
+    out = sub.check_output(cmd)
+    # this is git version
+    return [x.split()[-1] for x in out.split('\n') if len(x.strip())]
+    # this was bzr version
+    #return filter(None, out.split('\n'))
+
+def getWordCountForRevSimple(revno):
+    wc = 0
+    fnames = getFilenamesFromRev(revno)
+    for f in fnames: 
+        if not isFileCountable(f):
+            continue
+        #cmd1 = ['bzr', 'cat', '-r', 'revno:%d'%revno, f]
+        cmd1 = ['git', 'cat-file', '-p', '%s:%s'%(revno, f)]
+        cmd2 = ['wc', '-w']
+        p1 = sub.Popen(cmd1, stdout=sub.PIPE)
+        p2 = sub.Popen(cmd2, stdin=p1.stdout, stdout=sub.PIPE)
+        p1.stdout.close()
+        out,err = p2.communicate()
+        words = int(out.strip())
+        #print words
+        wc += words
+    #print "WC total in rev %s: %d" % (revno,wc)
+    return wc
+
+def getWordCountsForRev(revno):
+    global revcounts
+    global revdates
+    if revno == "working":
+        return getWordCountWorkingTree()
+    if not revcounts:
+        getRevCounts()
+    if not revdates:
+        getRevDates()
+    if not revno:
+        print "No revision number to count."
+        return 0
+    elif not revno in revcounts:
+        print "Tabulating word count for rev %s (%s)." % (revno[:6], revdates[revno])
+        tc = 0
+        mc = 0
+        ac = 0
+        fnames = getFilenamesFromRev(revno)
+        for f in fnames: 
+            if not isFileCountable(f):
+                continue
+            #cmd1 = ['bzr', 'cat', '-r', 'revno:%d'%revno, f]
+            cmd1 = ['git', 'cat-file', '-p', '%s:%s'%(revno, f)]
+            cmd2 = ['jwc', '-']
+            p1 = sub.Popen(cmd1, stdout=sub.PIPE)
+            p2 = sub.Popen(cmd2, stdin=p1.stdout, stdout=sub.PIPE)
+            p1.stdout.close()
+            out,err = p2.communicate()
+            ms,note,tot = out.split()
+            tc += int(tot.strip())
+            mc += int(ms.strip())
+            ac += int(note.strip())
+        item = {}
+        item['date'] = revdates[revno]
+        item['mscount'] = mc
+        item['notecount'] = ac
+        item['totalcount'] = tc
+        revcounts[revno] = item
+        if int(mc) + int(ac) == int(tc):
+            with open(datafname, 'a') as fh:
+                fh.write("%s,%s,%d,%d,%d\n" % (revno, revdates[revno],mc,ac,tc))
+        else:
+            print "Oops. Word counts don't add up."
+    return revcounts[revno]
+
+def getRevCounts():
+    global revcounts
+    if os.path.isfile(datafname):
+        with open(datafname, 'r') as fh:
+            for line in fh.readlines():
+                if line.strip():
+                    id,date,m,a,t = line.strip().split(',')
+                    item = {}
+                    item['date'] = date
+                    item['mscount'] = m
+                    item['notecount'] = a
+                    item['totalcount'] = t
+                    # git revs are not ints
+                    revcounts[id] = item
+                    # bzr revs were ints
+                    #revcounts[int(id)] = item
+        if not revcounts:
+            print "Something wrong during creation of revcounts"
+
+
+def getRevDates():
+    global revdates
+    if revdates:
+        # Don't get them again if they're already loaded
+        return
+    #cmd = ['bzr', 'log', '--short']
+    #cmd = ['git', 'log', '--date', 'short']
+    cmd = ['git', 'log', '--date', 'format:%Y-%m-%d_%H:%M:%S']
+    out = sub.check_output(cmd)
+    id = ''
+    # this is for the git version
+    for line in out.split('\n'):
+        if line.startswith('commit'):
+            id = line.split()[1] #[:6] might as well use entire hash
+        elif line.startswith('Date:'):
+            dt = line.split()[1].strip()
+            revdates[id] = dt
+
+    # this is for the bzr version
+    ln = 0
+    #for line in out.split('\n'):
+    #    if ln % 3 == 0:
+    #        #parseLine(line)
+    #        if line.strip() and line.strip()[0] in "0123456789":
+    #            a,dum,b = line.partition('\t')
+    #            id = int(a.strip().split(' ')[0])
+    #            date = b.strip().split(' ')[0]
+    #            revdates[id] = date
+    #            #print "%s on %s" % (id,date)
+    #    ln += 1
+
+def mostRecentRevBeforeToday():
+    global revdates
+    #todaystr = date.today().strftime("%Y-%m-%d")
+    todaystr = date.today().strftime("%Y-%m-%d_%H:%M:%S")
+    getRevDates()
+
+    # this is how we do it for git, since rev ids not sequential
+    oldrevs = {}
+    # create list of rev dates strictly prior to today
+    for rev in revdates:
+        # compare based on date portion only
+        if revdates[rev][:10] < todaystr[:10]:
+            oldrevs[rev] = revdates[rev]
+    if oldrevs:
+        return max(oldrevs, key=oldrevs.get)
+    else:
+        return ""
+
+    # # this is how it worked for bzr, because bzr revs are sequential
+    # olddates = [x for x in revdates if revdates[x] != todaystr]
+    # if olddates:
+    #     return max(olddates)
+    # else:
+    #     return ""
+
+def updateJCountData():
+    global revdates
+    getRevDates()
+    for revno in sorted(revdates):
+        getWordCountsForRev(revno)
+
+def getWordCountWorkingTree():
+    print "Tabulating word count for working files."
+    mwc=0
+    nwc=0
+    twc=0
+    for root, dir, files in os.walk('.'):
+        for file in files:
+            if not isFileCountable(file):
+                continue
+            cmd = ['jwc', os.path.join(root,file)]
+            out = sub.check_output(cmd)
+            ms,note,tot = out.split()
+            mwc += int(ms)
+            nwc += int(note)
+            twc += int(tot)
+    item = {}
+    item['date'] = "TODAY"
+    item['mscount'] = mwc
+    item['notecount'] = nwc
+    item['totalcount'] = twc
+    return item
+
+def ReportWordCountForRev(revno):
+    if revno == "working":
+        revitem = getWordCountWorkingTree()
+    else:
+        revitem = getWordCountsForRev(revno)
+    if revitem:
+        print "Rev %s Date: %s  MS: %s  Notes: %s  Total: %s" % (str(revno),
+                revitem['date'],
+                revitem['mscount'],
+                revitem['notecount'],
+                revitem['totalcount'])
+    else:
+        print "Something's wrong. Count data not found."
+
+def ReportWordCountDiffs(revno1, revno2):
+    items = [getWordCountsForRev(x) for x in [revno1, revno2]]
+    print "Word count changes from:"
+    print "  %s to %s" % (items[0]['date'], items[1]['date'])
+    if all(items):
+        dm = int(items[1]['mscount']) - int(items[0]['mscount'])
+        dn = int(items[1]['notecount']) - int(items[0]['notecount'])
+        dt = int(items[1]['totalcount']) - int(items[0]['totalcount'])
+        print "  %s manuscript words" % (str(dm).rjust(8))
+        print "  %s annotation words" % (str(dn).rjust(8))
+        print "  %s total words" % (str(dt).rjust(8))
+        print "  %s Project Total" % items[0]['totalcount']
+        print "  %s Project Total" % items[1]['totalcount']
+    else:
+        print "Something's wrong. RevCount records not found."
+
+if args['-d']:
+    if not revcounts:
+        getRevCounts()
+    for id in revcounts:
+        print "%s = %s" % (id, revcounts[id]['date'])
+         
+if args['-c']:
+    updateJCountData()
+
+if args['-r']:
+    revno = args['-r']
+    if revno != 'working':
+        # git revs are not ints
+        revno = args['-r']
+        # bzr revs are ints
+        revno = int(args['-r'])
+        getRevDates()
+        if not revno in revdates:
+            print "Revision '%d' does not exist." % revno
+            exit()
+    ReportWordCountForRev(revno)
+
+if args['-t']:
+    lastofdate = {}
+    getRevDates()
+    for id in sorted(revdates):
+        d = revdates[id]
+        # ids should now be in ascending order 
+        lastofdate[d] = id
+    # we now have a list of the last revision made on each date
+    prevrev = ''
+    for d in sorted(lastofdate):
+        currrev = lastofdate[d]
+        if prevrev:
+            #ReportWordCountDiffs(prevrev, currrev)
+            curcounts = getWordCountsForRev(currrev)
+            prevcounts = getWordCountsForRev(prevrev)
+            print "%s %d words" % (curcounts['date'], int(curcounts['totalcount'])-int(prevcounts['totalcount']))
+        prevrev = currrev
+
+
+if args['-w']:
+    recentrev = mostRecentRevBeforeToday()
+    print("Most recent rev before today is: %s"%recentrev[:6])
+    ReportWordCountDiffs(recentrev, "working")
+
+if args['-D']:
+    revs = args['-D'].split(',')
+    # only need to convert revs to ints for bzr
+    # if revs[0] != "working":
+    #     revs[0] = int(revs[0])
+    # if revs[1] != "working":
+    #     revs[1] = int(revs[1])
+    ReportWordCountDiffs(revs[0], revs[1])
+
+# default command - report words written today
+
