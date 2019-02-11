@@ -4,11 +4,11 @@ The jtools system is a work in progress. It works for me and I've been using it 
 
 And just to be clear, let me offer the following apologies and disclaimers in advance:
 
-    1. This is an experiment, not a product
-    1. I do not offer tech support of any kind
-    1. If one of these tools deletes your manuscript and fills your files with ancient Greek obscenities, I am more likely to laugh than apologize
-    1. I'm happy to discuss possible features/extensions
-    1. But for now, I'm only likely to implement the ones I want to use myself
+1. This is an experiment, not a product
+1. I do not offer tech support of any kind
+1. If one of these tools deletes your manuscript and fills your files with ancient Greek obscenities, I am more likely to laugh than apologize
+1. I'm happy to discuss possible features/extensions
+1. But for now, I'm only likely to implement the ones I want to use myself
 
 
 Problem
