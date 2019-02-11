@@ -33,19 +33,19 @@ At its heart, Jeffdown is more than just a system for typing your novel. It's li
 
 Commands
 --------
-    1. jtoc - Jeffdown Table of Contents: assembles the list of scenes, in author-specified order, from metadata in the scene files themselves.
-    1. jcount - Maintains a wordcount log for the entire length of your project. A new entry gets made every time you commit the files to git or bazaar, or every time you check the word count.
-    1. jglossary - pulls together an up-to-the-minute glossary of terms declared in all local scene files, and can also pull in terms from related documents, such as earlier books in a series. Also produces lists of characters and settings mentioned in the text.
+1. jtoc - Jeffdown Table of Contents: assembles the list of scenes, in author-specified order, from metadata in the scene files themselves.
+1. jcount - Maintains a wordcount log for the entire length of your project. A new entry gets made every time you commit the files to git or bazaar, or every time you check the word count.
+1. jglossary - pulls together an up-to-the-minute glossary of terms declared in all local scene files, and can also pull in terms from related documents, such as earlier books in a series. Also produces lists of characters and settings mentioned in the text.
 
 Roadmap
 -------
-vim-plugin-jdown: This will handle wiki-link jumping between scene files and background notes within the manuscript folders, as well as syntax highlighting for .jd files. Historically, I've used a combination of vimwiki and markdown plugins that come close, but the time has come for jdown to have its own dedicated plugins. Unfortunately, my vimscript fu is very weak, so this will take some time. 
+*vim-plugin-jdown*: This will handle wiki-link jumping between scene files and background notes within the manuscript folders, as well as syntax highlighting for .jd files. Historically, I've used a combination of vimwiki and markdown plugins that come close, but the time has come for jdown to have its own dedicated plugins. Unfortunately, my vimscript fu is very weak, so this will take some time. 
 
-jdconvert: The workhorse script that can produce EPUBs, PDF interior pages, beta-reader drafts, and short-story submission manuscripts directly from the .jd files, guided by the jtoc listing. The current version works just fine for me, in the relatively cozy context of my own computer environment, but it's nowhere near usable as an out-of-the-box tool for others to start using.
+*jdconvert*: The workhorse script that can produce EPUBs, PDF interior pages, beta-reader drafts, and short-story submission manuscripts directly from the .jd files, guided by the jtoc listing. The current version works just fine for me, in the relatively cozy context of my own computer environment, but it's nowhere near usable as an out-of-the-box tool for others to start using.
 
 
 Dependencies
 ------------
-    So far, only one package has proven itself so useful that I've embraced it throughout the Jeffdown tool ecosystem.
+So far, only one package has proven itself so useful that I've embraced it throughout the Jeffdown tool ecosystem.
 
-    docopt: For organizing and parsing command-line arguments and displaying help.
+*docopt*: For organizing and parsing command-line arguments and displaying help.
