@@ -26,11 +26,14 @@
       -P         # List Places flagged in the text instead of word definitions
       -Q         # List Quotables instead of words
       -V         # Display version information
-      -s REGEX   # Search the glossary for the REGEX pattern
       -w         # List words only, no defnitions
 
    Created 2014 by Jefferson Smith <jefferson@smithicus.com>
 """
+
+# Roadmap
+#
+# - Add -s, --source   Shows the source file for each entry
 
 import re
 import os
@@ -42,8 +45,6 @@ from docopt import docopt
 # process command line args
 args = docopt(__doc__, version='jglossary Version 0.1')
 #print (args)
-
-searchpat = args['-s']
 
 def signal_handler(sig, frame):
     print('Aborting at user request.')
@@ -208,7 +209,7 @@ elif (args['-L']):
 else:
     print ("Glossary Terms and Definitions:")
 for g in sorted(glosses, key=lambda x: x.phrase.lower()):
-   if g.phrase and g.match(searchpat):
+   if g.phrase:
       printDefinition(g.phrase, g.guts)
 
 
