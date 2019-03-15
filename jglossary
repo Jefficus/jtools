@@ -40,7 +40,7 @@ from docopt import docopt
 
 # process command line args
 args = docopt(__doc__, version='jglossary Version 0.1')
-#print args
+#print (args)
 
 searchpat = args['-s']
 
@@ -57,8 +57,8 @@ def printsummary(m, width=70, margin=6):
         outstr = wlist.pop(0)
         while wlist and (len(outstr) < linesize):
             outstr += ' ' + wlist.pop(0)
-        print ' '*margin + outstr
-    print
+        print (' '*margin + outstr)
+    print('')
 
 class Glossary():
    def __init__(self, tag, arg, guts, phrase=''):
@@ -79,7 +79,7 @@ class Glossary():
 
 def pullprefixphrase(haystack, n, tail):
    if not n.isdigit():
-      print "%s is not a number"%n
+      print ("%s is not a number"%n)
       return ''
    num = int(n)
    pat = "((?:\S+\s+){%d})\[%s\]"%(num,tail)
@@ -138,16 +138,16 @@ elif os.path.isfile('.jgloss') and not args['-i']:
     for pat in patterns:
         for name in glob.glob(pat):
             filenames.append(name)
-            #print name
+            #print (name)
 else:
-    print "No .jgloss file found. Create one or provide list of file names."
+    print ("No .jgloss file found. Create one or provide list of file names.")
     exit()
 
 if args['-l']:
-    print "Glossary Files:"
+    print ("Glossary Files:")
     for f in sorted(filenames):
-        print f
-    print
+        print (f)
+    print('')
 
 # now read the files and build the glossary
 for file in filenames:
@@ -186,19 +186,19 @@ def printDefinition(word, definition):
               frag += defwords.pop(0) + ' '
           #frag = definition[:remain]
           #definition = definition[remain+1:]
-          print outstr + frag
+          print (outstr + frag)
   else:
-    print "  " + word
+    print ("  " + word)
 
-print "Found %d matching entries." % len(glosses)
+print ("Found %d matching entries." % len(glosses))
 if (args['-C']):
-    print "Characters Mentioned:"
+    print ("Characters Mentioned:")
 elif (args['-Q']):
-    print "Quotable Quotations:"
+    print ("Quotable Quotations:")
 elif (args['-L']):
-    print "Points of Lore Mentioned:"
+    print ("Points of Lore Mentioned:")
 else:
-    print "Glossary Terms and Definitions:"
+    print ("Glossary Terms and Definitions:")
 for g in sorted(glosses, key=lambda x: x.phrase.lower()):
    if g.phrase and g.match(searchpat):
       printDefinition(g.phrase, g.guts)
