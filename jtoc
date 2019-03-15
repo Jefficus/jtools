@@ -51,23 +51,23 @@ tagexcludelist = set([])
 
 # process command line args
 args = docopt(__doc__, version='jtoc version 0.0.1')
-#print args
+#print (args)
 
 def mention(outstr):
     if args['-v']:
-        print outstr
+        print (outstr)
 
 if args['-n']:
     fname = args['FNAME']
     dtstr = args['DATESTR']
     summstr = args['SUMMARY']
     if os.path.isfile(fname):
-        print "File already exists. Aborting."
+        print("File already exists. Aborting.")
     else:
         with open(fname, 'w') as oh:
             guts="[order:%s]\n[status:sketched]\n[summary: %s]\n" % (dtstr, summstr)
             oh.write(guts)
-            print "File %s written." % fname
+            print("File %s written." % fname)
     exit()
 
 # UNFORTUNATELY, inserting default search tags creates problems in
@@ -92,14 +92,14 @@ if args['-t']:
         if t:
             taglist.add(t)
     #taglist = set([x.strip() for x in args['-t'].split(',')])
-    #print "Looking for files that match tags: '%s'" % ' '.join(taglist)
+    #print("Looking for files that match tags: '%s'" % ' '.join(taglist))
 
 if args['-T']:
     for t in [x.strip().lower() for x in args['-T'].split(',')]:
         if t:
             tagexcludelist.add(t)
     #tagexcludelist = set([x.strip() for x in args['-T'].split(',')])
-    #print "Looking for files that do not match any of tags: %s" % ' '.join(tagexcludelist)
+    #print("Looking for files that do not match any of tags: %s" % ' '.join(tagexcludelist))
 
 if taglist:
     mention("Showing files that match all tags: %s" % ', '.join(taglist) )
@@ -125,7 +125,7 @@ targetdir = os.getcwd()
 if args['DIR']:
     targetdir = args['DIR']
     if not os.path.exists(targetdir):
-        print "Directory '%s' does not exist. Aborting."%targetdir
+        print( "Directory '%s' does not exist. Aborting."%targetdir)
         exit()
 
 # decide whether or not to log the word count
@@ -136,7 +136,7 @@ if not os.path.exists(logfile):
     logfile = ''
 if args['-c'] or args['-a'] or not doSubdirs:
     logfile = ''
-#print "Logfile: " + logfile
+#print ("Logfile: " + logfile)
 
 if not doSubdirs:
     # if there are no JD files in this directory, 
@@ -144,7 +144,7 @@ if not doSubdirs:
     dirpath, dirnames, filenames = next(os.walk(targetdir))
     if dirnames and not any(isTargetFile(x) for x in filenames):
         doSubdirs = True
-        print "Auto-enabling subdirectory flag"
+        print ("Auto-enabling subdirectory flag")
 
 
 def groupStatus(statuslist):
@@ -167,16 +167,16 @@ def printsummary(m, width=70, margin=6):
         outstr = wlist.pop(0)
         while wlist and (len(outstr) < linesize):
             outstr += ' ' + wlist.pop(0)
-        print ' '*margin + outstr
-    print
+        print (' '*margin + outstr)
+    print()
 
 def printline(n,f,s,w):
     if not s:
         s = ' '
-    print "%s %s %s %s" % ( n.rjust(5),
+    print("%s %s %s %s" % ( n.rjust(5),
             f.ljust(25),
             s.ljust(12).lower(),
-            w.rjust(6))
+            w.rjust(6)))
 
 def SummarizeDir(dirpath, depth=0):
     "Returns ToC for the directory, plus list of statuses found and totalwc"
@@ -221,7 +221,7 @@ def SummarizeDir(dirpath, depth=0):
          m = re.search(pattern, txt, re.IGNORECASE)
          if m:
             tags = set([x.strip() for x in m.group(1).split(':')])
-         #print "Tags on file: %s" % ' '.join(tags)
+         #print( "Tags on file: %s" % ' '.join(tags))
          pattern = "\[status:\s*([a-z]+)"
          m = re.search(pattern, txt, re.IGNORECASE)
          if m:
@@ -263,7 +263,7 @@ toc,statuses,totalwc = SummarizeDir( targetdir )
 timewide = 7
 if args['-l']:
     for n,f,s,w,m in sorted(toc):
-        print f
+        print (f)
 else:
     totalwc = 0
     if toc:
@@ -284,8 +284,8 @@ else:
         printline('='*timewide,'='*titwide, '='*10, '='*6)
         printline(str(len(toc)).rjust(timewide),'SUMMARY'.ljust(titwide),groupStatus(statuses),str(totalwc))
         #if logfile:
-        #    print "Logging total wordcount to %s" % logfile
+        #    print( "Logging total wordcount to %s" % logfile)
         #else:
-        #    print "No log file being saved."
+        #    print( "No log file being saved.")
     else:
         print("No contents to report.")
