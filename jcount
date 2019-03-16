@@ -39,6 +39,7 @@ Roadmap:
 
 
 import os
+import sys
 import subprocess as sub
 from datetime import date
 from docopt import docopt
@@ -47,10 +48,10 @@ datafname = ".jcounts"
 
 # process command line args
 args = docopt(__doc__, version='jcount version 0.0.1')
-#print args
+#print (args)
 
 if not args['-c'] and not os.path.isfile(datafname):
-    print "No jcount data file found. Consider running: jcount -c"
+    print ("No jcount data file found. Consider running: jcount -c")
     exit()
 
 def isFileCountable(fname):
@@ -68,7 +69,7 @@ revdates = {}
 def getFilenamesFromRev(revno):
     #cmd = ['bzr', 'ls', '-k', 'file', '-r', 'revno:%d'%revno]
     cmd = ['git', 'ls-tree', '-r', '-r', revno]
-    out = sub.check_output(cmd)
+    out = sub.check_output(cmd).decode(sys.stdout.encoding)
     # this is git version
     return [x.split()[-1] for x in out.split('\n') if len(x.strip())]
     # this was bzr version
@@ -88,9 +89,9 @@ def getWordCountForRevSimple(revno):
         p1.stdout.close()
         out,err = p2.communicate()
         words = int(out.strip())
-        #print words
+        #print (words)
         wc += words
-    #print "WC total in rev %s: %d" % (revno,wc)
+    #print ("WC total in rev %s: %d" % (revno,wc))
     return wc
 
 def getWordCountsForRev(revno):
@@ -103,10 +104,10 @@ def getWordCountsForRev(revno):
     if not revdates:
         getRevDates()
     if not revno:
-        print "No revision number to count."
+        print ("No revision number to count.")
         return 0
     elif not revno in revcounts:
-        print "Tabulating word count for rev %s (%s)." % (revno[:6], revdates[revno])
+        print ("Tabulating word count for rev %s (%s)." % (revno[:6], revdates[revno]))
         tc = 0
         mc = 0
         ac = 0
@@ -135,7 +136,7 @@ def getWordCountsForRev(revno):
             with open(datafname, 'a') as fh:
                 fh.write("%s,%s,%d,%d,%d\n" % (revno, revdates[revno],mc,ac,tc))
         else:
-            print "Oops. Word counts don't add up."
+            print ("Oops. Word counts don't add up.")
     return revcounts[revno]
 
 def getRevCounts():
@@ -155,7 +156,7 @@ def getRevCounts():
                     # bzr revs were ints
                     #revcounts[int(id)] = item
         if not revcounts:
-            print "Something wrong during creation of revcounts"
+            print ("Something wrong during creation of revcounts")
 
 
 def getRevDates():
@@ -166,10 +167,13 @@ def getRevDates():
     #cmd = ['bzr', 'log', '--short']
     #cmd = ['git', 'log', '--date', 'short']
     cmd = ['git', 'log', '--date', 'format:%Y-%m-%d_%H:%M:%S']
-    out = sub.check_output(cmd)
+    out = sub.check_output(cmd).decode(sys.stdout.encoding)
     id = ''
     # this is for the git version
+    #print("Git output:")
+    #print(out)
     for line in out.split('\n'):
+        print(line)
         if line.startswith('commit'):
             id = line.split()[1] #[:6] might as well use entire hash
         elif line.startswith('Date:'):
@@ -186,7 +190,7 @@ def getRevDates():
     #            id = int(a.strip().split(' ')[0])
     #            date = b.strip().split(' ')[0]
     #            revdates[id] = date
-    #            #print "%s on %s" % (id,date)
+    #            #print ("%s on %s" % (id,date))
     #    ln += 1
 
 def mostRecentRevBeforeToday():
@@ -221,7 +225,7 @@ def updateJCountData():
         getWordCountsForRev(revno)
 
 def getWordCountWorkingTree():
-    print "Tabulating word count for working files."
+    print ("Tabulating word count for working files.")
     mwc=0
     nwc=0
     twc=0
@@ -230,7 +234,7 @@ def getWordCountWorkingTree():
             if not isFileCountable(file):
                 continue
             cmd = ['jwc', os.path.join(root,file)]
-            out = sub.check_output(cmd)
+            out = sub.check_output(cmd).decode(sys.stdout.encoding)
             ms,note,tot = out.split()
             mwc += int(ms)
             nwc += int(note)
@@ -248,35 +252,35 @@ def ReportWordCountForRev(revno):
     else:
         revitem = getWordCountsForRev(revno)
     if revitem:
-        print "Rev %s Date: %s  MS: %s  Notes: %s  Total: %s" % (str(revno),
+        print ("Rev %s Date: %s  MS: %s  Notes: %s  Total: %s" % (str(revno),
                 revitem['date'],
                 revitem['mscount'],
                 revitem['notecount'],
-                revitem['totalcount'])
+                revitem['totalcount']))
     else:
-        print "Something's wrong. Count data not found."
+        print ("Something's wrong. Count data not found.")
 
 def ReportWordCountDiffs(revno1, revno2):
     items = [getWordCountsForRev(x) for x in [revno1, revno2]]
-    print "Word count changes from:"
-    print "  %s to %s" % (items[0]['date'], items[1]['date'])
+    print ("Word count changes from:")
+    print ("  %s to %s" % (items[0]['date'], items[1]['date']))
     if all(items):
         dm = int(items[1]['mscount']) - int(items[0]['mscount'])
         dn = int(items[1]['notecount']) - int(items[0]['notecount'])
         dt = int(items[1]['totalcount']) - int(items[0]['totalcount'])
-        print "  %s manuscript words" % (str(dm).rjust(8))
-        print "  %s annotation words" % (str(dn).rjust(8))
-        print "  %s total words" % (str(dt).rjust(8))
-        print "  %s Project Total" % items[0]['totalcount']
-        print "  %s Project Total" % items[1]['totalcount']
+        print ("  %s manuscript words" % (str(dm).rjust(8)))
+        print ("  %s annotation words" % (str(dn).rjust(8)))
+        print ("  %s total words" % (str(dt).rjust(8)))
+        print ("  %s Project Total" % items[0]['totalcount'])
+        print ("  %s Project Total" % items[1]['totalcount'])
     else:
-        print "Something's wrong. RevCount records not found."
+        print ("Something's wrong. RevCount records not found.")
 
 if args['-d']:
     if not revcounts:
         getRevCounts()
     for id in revcounts:
-        print "%s = %s" % (id, revcounts[id]['date'])
+        print ("%s = %s" % (id, revcounts[id]['date']))
          
 if args['-c']:
     updateJCountData()
@@ -290,7 +294,7 @@ if args['-r']:
         revno = int(args['-r'])
         getRevDates()
         if not revno in revdates:
-            print "Revision '%d' does not exist." % revno
+            print ("Revision '%d' does not exist." % revno)
             exit()
     ReportWordCountForRev(revno)
 
@@ -309,7 +313,7 @@ if args['-t']:
             #ReportWordCountDiffs(prevrev, currrev)
             curcounts = getWordCountsForRev(currrev)
             prevcounts = getWordCountsForRev(prevrev)
-            print "%s %d words" % (curcounts['date'], int(curcounts['totalcount'])-int(prevcounts['totalcount']))
+            print ("%s %d words" % (curcounts['date'], int(curcounts['totalcount'])-int(prevcounts['totalcount'])))
         prevrev = currrev
 
 

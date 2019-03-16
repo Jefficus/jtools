@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+"""
+   jwc: Count draft words and annotation words in markdown or jdown
+   file. Returns three numbers: the draft total, the annotation total
+   and the file total. (All text inside [ ] brackets are considered tobe annotations, as are any files not containing a :scene: tag.)
+
+   Usage: 
+      jwc [options] FILE
+
+   Options:
+      -h    # Print this help information
+      -v    # Display verbose output
+      -V    # Display version information
+
+   Created 2017 by Jefferson Smith <jefferson@smithicus.com>
+"""
+
+"""
+Roadmap:
+    X Get basic counts of all files and ms files
+    X Add docopt arg processing
+"""
+
+import re
+import sys
+from docopt import docopt
+
+# process command line args
+args = docopt(__doc__, version='jcount version 0.0.1')
+#print (args)
+
+def countWordsInFile(fh):
+   totalwc = 0
+   notewc = 0
+   mswc = 0
+   
+   annotags = set(['abandoned','deleted','archived','inactive'])
+   
+   mswc = 0
+   msfile = False
+   content = fh.read().replace('[[','[X').replace(']]','X]')
+   totalwc = len(content.split())
+   pat = '\[\s*tags:.*?(:.*:).*?\]'
+   m = re.search(pat,content, re.IGNORECASE)
+   if m:
+       tagline = m.group(1)
+       tags = set(tagline.split(':'))
+       if 'scene' in tags and tags.isdisjoint(annotags):
+           msfile = True
+   if msfile:
+       if args['-v']:
+           print ("MS file detected.")
+       pat = '\[.*?\]'
+       mscontent = re.sub(pat, '', content)
+       mswc = len(mscontent.split())
+   else:
+       if args['-v']:
+           print ("Annotation file detected.")
+   notewc = totalwc-mswc
+   return mswc, notewc, totalwc
+
+if args['FILE'] == "-":
+    fh = sys.stdin
+else:
+    fh = open(args['FILE'], 'r')
+
+m,n,t = countWordsInFile(fh)
+
+if not args['FILE'] == "-":
+    fh.close()
+
+if args['-v']:
+    print ("MS: %d  Notes: %d  Total: %d" % (m,n,t))
+else:
+    print ("%d %d %d" % (m,n,t))
